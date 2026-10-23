@@ -1020,6 +1020,20 @@ static int oci_stmt_col_meta(pdo_stmt_t *stmt, zend_long colno, zval *return_val
 	return SUCCESS;
 } /* }}} */
 
+static int oci_stmt_cursor_closer(pdo_stmt_t *stmt) /* {{{ */
+{
+	pdo_oci_stmt *S = (pdo_oci_stmt*)stmt->driver_data;
+
+	/* Without a closer, PDO drains the previous result with the fetcher, even on
+	 * DML / DDL handles (ORA-01002, ORA-03137 on PHP 8.4.27 / 8.5.12: GH-24372).
+	 * Only a query has a cursor: cancel it, as oci_stmt_execute() does. */
+	if (S && S->stmt && S->stmt_type == OCI_STMT_SELECT) {
+		OCIStmtFetch(S->stmt, S->err, 0, OCI_FETCH_NEXT, OCI_DEFAULT);
+	}
+
+	return 1;
+} /* }}} */
+
 const struct pdo_stmt_methods oci_stmt_methods = {
 	oci_stmt_dtor,
 	oci_stmt_execute,
@@ -1031,5 +1045,5 @@ const struct pdo_stmt_methods oci_stmt_methods = {
 	NULL, /* get_attr */
 	oci_stmt_col_meta,
 	NULL,
-	NULL
+	oci_stmt_cursor_closer
 };
